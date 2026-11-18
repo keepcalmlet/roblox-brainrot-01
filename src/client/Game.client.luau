@@ -1,88 +1,126 @@
--- A square that moves with the arrow keys inside a grey box.
-
+-- LocalScript for the Brainrot Bazar HUD
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
+local Catalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("BrainrotCatalog"))
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
-local ARENA_WIDTH = 640
-local ARENA_HEIGHT = 480
-local SQUARE_SIZE = 48
-local SPEED = 320 -- pixels per second
+local SyncState = Remotes:WaitForChild("SyncState")
+local BuyCharacter = Remotes:WaitForChild("BuyCharacter")
+local CollectCash = Remotes:WaitForChild("CollectCash")
+local Rebirth = Remotes:WaitForChild("Rebirth")
+local ThreatEvent = Remotes:WaitForChild("ThreatEvent")
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "GameGui"
+gui.Name = "BrainrotBazarHud"
 gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-
-local background = Instance.new("Frame")
-background.Name = "Background"
-background.Size = UDim2.fromScale(1, 1)
-background.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-background.BorderSizePixel = 0
-background.Parent = gui
-
-local title = Instance.new("TextLabel")
-title.Name = "Hint"
-title.AnchorPoint = Vector2.new(0.5, 0)
-title.Position = UDim2.new(0.5, 0, 0.5, -ARENA_HEIGHT / 2 - 56)
-title.Size = UDim2.fromOffset(ARENA_WIDTH, 40)
-title.BackgroundTransparency = 1
-title.Text = "Use the arrow keys to move the square"
-title.TextColor3 = Color3.fromRGB(230, 230, 230)
-title.TextSize = 24
-title.Font = Enum.Font.SourceSans
-title.Parent = background
-
-local arena = Instance.new("Frame")
-arena.Name = "Arena"
-arena.AnchorPoint = Vector2.new(0.5, 0.5)
-arena.Position = UDim2.fromScale(0.5, 0.5)
-arena.Size = UDim2.fromOffset(ARENA_WIDTH, ARENA_HEIGHT)
-arena.BackgroundColor3 = Color3.fromRGB(110, 110, 110)
-arena.BorderColor3 = Color3.fromRGB(30, 30, 30)
-arena.BorderSizePixel = 2
-arena.Parent = background
-
-local square = Instance.new("Frame")
-square.Name = "Square"
-square.Size = UDim2.fromOffset(SQUARE_SIZE, SQUARE_SIZE)
-square.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-square.BorderColor3 = Color3.fromRGB(30, 30, 30)
-square.BorderSizePixel = 2
-square.Parent = arena
-
--- The square's top-left corner inside the arena, starting in the middle.
-local x = (ARENA_WIDTH - SQUARE_SIZE) / 2
-local y = (ARENA_HEIGHT - SQUARE_SIZE) / 2
-
-local function place()
-	square.Position = UDim2.fromOffset(math.floor(x + 0.5), math.floor(y + 0.5))
-end
-
-place()
 gui.Parent = player:WaitForChild("PlayerGui")
 
-RunService.RenderStepped:Connect(function(dt)
-	local dx = 0
-	local dy = 0
-	if UserInputService:IsKeyDown(Enum.KeyCode.Left) then
-		dx -= 1
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.Right) then
-		dx += 1
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.Up) then
-		dy -= 1
-	end
-	if UserInputService:IsKeyDown(Enum.KeyCode.Down) then
-		dy += 1
-	end
-	if dx == 0 and dy == 0 then
-		return
-	end
-	x = math.clamp(x + dx * SPEED * dt, 0, ARENA_WIDTH - SQUARE_SIZE)
-	y = math.clamp(y + dy * SPEED * dt, 0, ARENA_HEIGHT - SQUARE_SIZE)
-	place()
+-- HUD Elements
+local cashBar = Instance.new("Frame", gui)
+cashBar.Size = UDim2.new(0, 300, 0, 80)
+cashBar.Position = UDim2.new(0.5, -150, 0, 20)
+cashBar.BackgroundColor3 = Color3.new(0, 0, 0)
+cashBar.BackgroundTransparency = 0.5
+cashBar.BorderSizePixel = 0
+
+local cashText = Instance.new("TextLabel", cashBar)
+cashText.Size = UDim2.new(1, 0, 0.6, 0)
+cashText.TextColor3 = Color3.new(1, 1, 1)
+cashText.TextSize = 24
+cashText.Font = Enum.Font.SourceSansBold
+cashText.Parent = cashBar
+
+local incomeText = Instance.new("TextLabel", cashBar)
+incomeText.Size = UDim2.new(1, 0, 0.4, 0)
+incomeText.Position = UDim2.new(0, 0, 0.6, 0)
+incomeText.TextColor3 = Color3.new(1, 1, 1)
+incomeText.TextSize = 16
+incomeText.Parent = cashBar
+
+-- Shop Panel
+local shopPanel = Instance.new("ScrollingFrame", gui)
+shopPanel.Size = UDim2.new(0, 400, 0, 500)
+shopPanel.Position = UDim2.new(0.8, -200, 0.5, -250)
+shopPanel.CanvasSize = UDim2.new(0, 0, 2, 0)
+shopPanel.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+Instance.new("UIListLayout", shopPanel)
+
+for _, rarity in pairs(Catalog.Rarity) do
+    local rarityHeader = Instance.new("TextLabel", shopPanel)
+    rarityHeader.Text = rarity
+    rarityHeader.Size = UDim2.new(1, 0, 0, 30)
+    for _, char in pairs(Catalog.GetByRarity(rarity)) do
+        local row = Instance.new("Frame", shopPanel)
+        row.Size = UDim2.new(1, 0, 0, 40)
+        
+        local stripe = Instance.new("Frame", row)
+        stripe.Size = UDim2.new(0, 10, 1, 0)
+        stripe.BackgroundColor3 = char.Color
+        
+        local nameLabel = Instance.new("TextLabel", row)
+        nameLabel.Text = "<b>"..char.Name.."</b>"
+        nameLabel.RichText = true
+        nameLabel.Position = UDim2.new(0, 15, 0, 0)
+        
+        local buyBtn = Instance.new("TextButton", row)
+        buyBtn.Text = "Buy ($"..char.Price..")"
+        buyBtn.Position = UDim2.new(0.7, 0, 0, 5)
+        buyBtn.Size = UDim2.new(0.25, 0, 0, 30)
+        buyBtn.BackgroundColor3 = Color3.new(0, 1, 0)
+        
+        buyBtn.MouseButton1Click:Connect(function()
+            BuyCharacter:FireServer(char)
+        end)
+    end
+end
+
+-- Minimap
+local minimap = Instance.new("Frame", gui)
+minimap.Size = UDim2.new(0, 100, 0, 100)
+minimap.Position = UDim2.new(0, 10, 0, 10)
+minimap.BackgroundColor3 = Color3.new(0,0,0)
+for i=1, 8 do
+    local plot = Instance.new("Frame", minimap)
+    plot.Size = UDim2.new(0, 20, 0, 20)
+    plot.Position = UDim2.new(0, (i%4)*25, 0, math.floor(i/4)*25)
+end
+
+-- Events
+ThreatEvent.OnClientEvent:Connect(function(message, color)
+    local banner = Instance.new("TextLabel", gui)
+    banner.Size = UDim2.new(1, 0, 0, 50)
+    banner.Position = UDim2.new(0, 0, 0.5, -25)
+    banner.BackgroundColor3 = color
+    banner.Text = message
+    banner.TextSize = 30
+    task.wait(4)
+    banner:Destroy()
+
+    -- Camera shake
+    local cam = workspace.CurrentCamera
+    for i = 1, 5 do
+        cam.CFrame *= CFrame.new(math.random(-1, 1), math.random(-1, 1), 0) * CFrame.Angles(0, 0, math.rad(math.random(-1, 1)))
+        task.wait(0.1)
+    end
+end)
+
+-- Rarity Legend
+local legend = Instance.new("Frame", gui)
+legend.Size = UDim2.new(0, 150, 0, 200)
+legend.Position = UDim2.new(0, 10, 0.5, -100)
+legend.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+Instance.new("UIListLayout", legend)
+for name, rarity in pairs(Catalog.Rarity) do
+    local item = Instance.new("TextLabel", legend)
+    item.Text = rarity
+    item.Size = UDim2.new(1, 0, 0, 25)
+end
+
+SyncState.OnClientEvent:Connect(function(state)
+    cashText.Text = "$" .. math.floor(state.Cash)
+    incomeText.Text = "+$" .. math.floor(state.IncomePerSecond) .. "/s"
 end)

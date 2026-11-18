@@ -1,3 +1,12 @@
+// Brainrot Bazar: collect absurd brainrots on your bazar plot, dodge the Nuscanner wave, rebirth for multipliers.
+//
+// MODULES:
+//   BrainrotCatalog: Defines data for all collectable brainrot items.
+//   PlotService: Manages player plot assignment and character placement.
+//   IncomeService: Handles cash processing, buying, and rebirth logic.
+//   ThreatService: Controls deterministic hazards like Nuscanner waves.
+//   Game.client: Client-side UI and input handling for the tycoon.
+
 // A working roblox-brainrot-01 entry (Node 22, standard library only): the game is this directory's Rojo
 // project, built into game.rbxl with `rojo build default.project.json --output game.rbxl`, and the program
 // hands it in. It copies game.rbxl, src/, screenshots/ and PLAY.json from beside this file to /output and
